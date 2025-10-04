@@ -1,0 +1,80 @@
+# config.toml
+# Project configuration for the trading bot. Values here override src/config.py defaults.
+
+[run]
+# Default ticker if --ticker is not provided
+default_ticker = "TSLA"
+# Where to store the SQLite database (created if missing)
+db_path = "data/db.sqlite"
+
+[fetch]
+# How many trading days of history to download from yfinance
+lookback_days = 250
+
+# -------------------- TECHNICALS --------------------
+
+[rsi]
+period = 14
+oversold = 20.0
+overbought = 80.0
+
+[sma]
+# Triple SMA windows (fast, mid, slow)
+short = 20
+mid = 50
+long = 200
+# If price == SMA, treat as "below" when true
+equal_is_below = true
+# Slope filter for trend confirmation
+slope_window = 10
+slope_tol = 0.0
+
+[bollinger]
+window = 20
+k = 2.0
+# If true, price == band counts as "inside"
+equal_is_inside = true
+
+[price_volume]
+# Compare last N days to previous N days
+window = 5
+# Require this volume multiple to consider volume "rising"
+vol_ratio_min = 1.10
+
+# Historical similarity on price (moved under technicals in code)
+[hist_sim]
+window = 20      # number of days to match against
+horizon = 5      # forward return horizon used for label
+top_k = 10       # aggregate over top-K matches
+
+# -------------------- FUNDAMENTALS --------------------
+
+[pe_ratio]
+# Simple P/E bands:
+#   pe < buy_below  => BUY
+#   buy_below..hold_upper => HOLD
+#   pe > hold_upper => SELL
+buy_below = 15.0
+hold_upper = 25.0
+allow_forward = true   # fall back to forward P/E if trailing is unavailable
+
+# -------------------- SENTIMENT --------------------
+
+[sentiment]
+enabled = false
+# Subreddits to scan for comments
+subreddits = ["stocks", "investing", "wallstreetbets"]
+# Optional alternate aliases to match (e.g., company names)
+synonyms = ["Tesla"]
+# API parameters
+max_comments = 50       # per subreddit fetch limit (before ticker filtering)
+classify_top_n = 15     # how many of the newest matching comments to classify
+max_age_days = 7.0      # ignore older comments
+
+# Weighting (recency + upvotes)
+half_life_days = 3.0    # exponential decay half-life for recency
+min_score_weight = 0.5  # lower clamp for upvote factor
+max_score_weight = 2.0  # upper clamp for upvote factor
+
+# LLM for batch sentiment classification (via LangChain OpenAI)
+model = "gpt-4o-mini"
