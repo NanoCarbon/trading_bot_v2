@@ -1,11 +1,22 @@
 # src/collector.py
 from __future__ import annotations
 
-import os
+import os, logging
 import pandas as pd
 import yfinance as yf
+os.environ["YF_DEBUG"] = "0"
+os.environ["YFINANCE_DEBUG"] = "0"
+logging.getLogger("yfinance").setLevel(logging.ERROR)
 from .db import init_db, insert_run, insert_vote
 
+try:
+    from yfinance import tz
+    tz.set_debug(False)  # stops the _tz_kv / SQL messages
+except Exception:
+    pass
+logging.getLogger("yfinance").setLevel(logging.ERROR)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("requests").setLevel(logging.WARNING)
 # class-based technicals
 from .pillars.technicals import (
     RSIIndicator,
@@ -20,8 +31,8 @@ from .pillars.technicals.utils import _ensure_1d_series
 from .pillars.fundamentals.pe_ratio import PERatioTool
 
 # sentiment
-from .pillars.sentiment import RedditBatchSentimentTool
-
+from .pillars.sentiment.reddit_sentiment import RedditBatchSentimentTool
+from .pillars.sentiment.twitter_sentiment import TwitterSentimentTool
 
 def fetch_prices(ticker: str, lookback_days: int) -> pd.DataFrame:
     df = yf.download(
@@ -76,6 +87,8 @@ def run_once(ticker: str, cfg: dict):
         }
 
     # --- sentiment (optional) ---
+
+    # Reddit Sentiment
     sentiment_enabled_cfg = cfg.get("sentiment", {}).get("enabled", True)
     sentiment_enabled_env = os.getenv("SKIP_SENTIMENT", "0") != "1"
     sentiment_enabled = sentiment_enabled_cfg and sentiment_enabled_env
@@ -111,8 +124,42 @@ def run_once(ticker: str, cfg: dict):
             "data": {},
         }
 
-    # include fundamentals + sentiment
-    votes = tech_votes + [pe_vote, sent_vote]
+    # Twitter sentiment
+    twitter_cfg = cfg.get("twitter", {})
+    twitter_enabled_cfg = twitter_cfg.get("enabled", True)
+    twitter_enabled_env = os.getenv("SKIP_TWITTER", "0") != "1"
+    twitter_enabled = twitter_enabled_cfg and twitter_enabled_env
+
+    if twitter_enabled:
+        try:
+            tw_vote = TwitterSentimentTool().compute(
+                ticker,
+                synonyms=twitter_cfg.get("synonyms", []),
+                max_results=twitter_cfg.get("max_results", 30),
+                classify_top_n=twitter_cfg.get("classify_top_n", 15),
+                days_back=twitter_cfg.get("days_back", 30),
+                half_life_days=twitter_cfg.get("half_life_days", 3.0),
+                min_score_weight=twitter_cfg.get("min_score_weight", 0.5),
+                max_score_weight=twitter_cfg.get("max_score_weight", 2.0),
+                model=twitter_cfg.get("model", "gpt-4o-mini"),
+                db_con=con,
+                run_id=run_id,
+            )
+        except Exception as e:
+            tw_vote = {
+                "pillar":"sentiment","tool":"TWITTER_SENTIMENT","signal":"HOLD","vote":0,"confidence":0.5,
+                "reason": f"twitter sentiment skipped: {type(e).__name__}",
+                "data": {"error": str(e)[:200]}
+            }
+    else:
+        tw_vote = {
+            "pillar":"sentiment","tool":"TWITTER_SENTIMENT","signal":"HOLD","vote":0,"confidence":0.5,
+            "reason": "twitter sentiment disabled via config/env",
+            "data": {}
+        }
+
+    # include it in your votes list
+    votes = tech_votes + [pe_vote, sent_vote, tw_vote]  # adjust to your current shape
 
     # --- store votes ---
     for v in votes:

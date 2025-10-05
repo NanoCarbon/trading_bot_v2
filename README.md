@@ -115,7 +115,7 @@ allow_forward = true  # fallback to forward PE if trailing missing
 # -------------------- SENTIMENT --------------------
 
 [sentiment]
-enabled = true        # set false to disable
+enabled = false       # currently disabled due to Twitter API rate limiting
 subreddits = ["stocks", "investing", "wallstreetbets"]
 synonyms = []
 max_comments = 50
@@ -197,12 +197,20 @@ Every indicator returns:
   - P/E > `hold_upper` ⇒ **SELL**
   - Confidence increases as P/E sits farther from thresholds.
 
-### Pillar: Sentiment (Reddit, optional)
+### Pillar: Sentiment (Currently Disabled)
 
-- Fetches recent comments from configured subreddits that mention your ticker (`$TICKER` or whole word).  
-- Batches comments to an **OpenAI** model (default `gpt-4o-mini`) for **Bullish/Bearish/Neutral** classification with optional model confidence.  
-- Aggregates with **recency decay** (half-life) + gentle **upvote weight**.  
-- Emits **BUY/SELL/HOLD** + confidence; also logs raw classified items to a `sentiment` table when DB/run id are provided.
+Planned integrations:
+
+**Reddit Analysis**:
+- Will fetch comments from configured subreddits that mention the ticker
+- Uses OpenAI model for sentiment classification
+- Weights by comment age and upvotes
+
+**Twitter Analysis** (In Progress):
+- Currently addressing rate limiting challenges
+- Uses NLTK VADER for sentiment analysis
+- Supports multiple query strategies
+- Includes engagement metrics
 
 **Make sentiment optional**:
 
@@ -233,6 +241,7 @@ sqlite3 data/votes.sqlite "SELECT pillar, tool, vote, signal, substr(reason,1,60
 
 ## Notes & caveats
 
+- **Twitter API**: Currently working through rate limiting challenges. Integration is disabled by default.
 - **Reddit API**: Respect rate limits. If you see 401s, verify `REDDIT_CLIENT_ID/SECRET/USER_AGENT`, and ensure your app is configured as *script* on https://www.reddit.com/prefs/apps/
 - **OpenAI**: Set `OPENAI_API_KEY`. You can swap models via `config.toml`.
 - **yfinance**: Some fundamentals fields can be missing; the P/E tool tries multiple sources and falls back to forward P/E (configurable).

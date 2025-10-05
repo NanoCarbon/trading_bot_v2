@@ -76,5 +76,13 @@ half_life_days = 3.0    # exponential decay half-life for recency
 min_score_weight = 0.5  # lower clamp for upvote factor
 max_score_weight = 2.0  # upper clamp for upvote factor
 
-# LLM for batch sentiment classification (via LangChain OpenAI)
+[twitter]
+enabled = false        # flip to false to disable
+max_results = 30        # counts against your 100/month local cap
+classify_top_n = 15     # send at most N to the LLM
+days_back = 30          # client caps to <= 7 on free tiers
+half_life_days = 3.0
+min_score_weight = 0.5
+max_score_weight = 2.0
 model = "gpt-4o-mini"
+synonyms = []           # e.g., ["Tesla", "Elon"]
